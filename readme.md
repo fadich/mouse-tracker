@@ -10,6 +10,12 @@ Clone the project to your machine:
 git clone https://github.com/fadich/mouse-tracker.git
 ```
 
+Change the working directory:
+
+```bash
+cd mouse-tracker
+```
+
 ### Installation
 
 Make the scripts executive:

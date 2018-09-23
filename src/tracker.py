@@ -29,6 +29,7 @@ class Tracker(object):
 
     def start_in_thread(self):
         """Run the Tracker **in thread** until the break event is set."""
+
         self._thread = Thread(target=self.start)
         self._thread.start()
 

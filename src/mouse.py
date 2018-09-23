@@ -1,12 +1,15 @@
+import pyautogui
+
 from time import sleep
 
-from pyautogui import position, moveTo
+
+pyautogui.FAILSAFE = False
 
 
 def get_position():
     sleep(0.01)
-    return position()
+    return pyautogui.position()
 
 
 def move_to(positions):
-    moveTo(positions, duration=0.0, pause=0.0)
+    pyautogui.moveTo(positions, duration=0.0, pause=0.0)

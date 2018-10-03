@@ -1,45 +1,101 @@
 import sys
 
+from queue import Queue
+from typing import Tuple
+from functools import partial
+from threading import Event, Thread
 from collections import OrderedDict
 
 from tabulate import tabulate
 
-from tracker import Tracker, Event
-from history import History, Executor
-from mouse import get_position, move_to
+from tracker import Tracker
+from history import History, Executor, BaseCommand
+from mouse import ClickRegisterer, get_position, move_to, click
+
+
+class MoveCommand(BaseCommand):
+
+    def __init__(self, do_pos: Tuple, undo_pos: Tuple):
+        super().__init__()
+        self.do_pos = do_pos
+        self.undo_pos = undo_pos
+
+    def do(self):
+        return move_to(self.do_pos)
+
+    def undo(self):
+        return move_to(self.undo_pos)
+
+    def __str__(self):
+        return 'Move ({}, {})'.format(*self.do_pos)
+
+
+class ClickCommand(BaseCommand):
+
+    def do(self):
+        return click()
+
+    def undo(self):
+        return click()
+
+    def __str__(self):
+        return 'Click'
+
+
+def get_command():
+    queue = Queue()
+
+    def register_position():
+        while True:
+            pos = get_position()
+            queue.put(MoveCommand(pos, pos))
+
+    def register_click():
+        c = ClickRegisterer(partial(queue.put, ClickCommand()))
+        # try:
+        #     c.run()
+        # except KeyboardInterrupt:
+        #     c.stop()
+
+    Thread(target=register_click, daemon=True).start()
+    Thread(target=register_position, daemon=True).start()
+
+    while True:
+        if not queue.empty():
+            yield queue.get()
 
 
 def display_table(history: History):
-    rows_data = [(i[0], *i[1]) for i in history.events.items()]
-    table = tabulate(rows_data, headers=('Time', 'X', 'Y'),
+    rows_data = [(i[0], str(i[1])) for i in history.commands.items()]
+    table = tabulate(rows_data, headers=('Time', 'Event'),
                      tablefmt='grid', stralign='left', numalign='center')
 
     print(table)
 
 
-def execute(history: History):
-    e = Executor(history, move_to)
-    e.run()
+def execute(history: History, reverse: bool = False):
+    e = Executor(history)
+    e.run(reverse)
 
 
 def main(*args):
-    pos_history = History()
+    history = History()
     break_event = Event()
 
-    t = Tracker(history=pos_history, event_registerer=get_position,
-                break_event=break_event)
-    # t.start_in_thread()
+    tracker = Tracker(history=history, event_list=get_command(), break_event=break_event)
+
+    print('Tracking the mouse cursor moving.')
+    print('Press [Ctrl+C] to stop the tracker...')
 
     try:
-        print('Tracking the mouse cursor moving.')
-        print('Press [Ctrl+C] to stop the tracker...')
-        t.start()
+        tracker.start()
     except KeyboardInterrupt:
-        t.stop()
+        tracker.stop()
 
     options = OrderedDict([
         ('1', 'Display history'),
         ('2', 'Execute'),
+        ('3', 'Reversed'),
         ('0', 'Exit'),
     ])
 
@@ -55,9 +111,11 @@ def main(*args):
             elif option == '0':
                 break
             elif option == '1':
-                display_table(pos_history)
+                display_table(history)
             elif option == '2':
-                execute(pos_history)
+                execute(history)
+            elif option == '3':
+                execute(history, True)
 
     except KeyboardInterrupt:
         pass
@@ -66,4 +124,4 @@ def main(*args):
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(main(*sys.argv[1:]))
